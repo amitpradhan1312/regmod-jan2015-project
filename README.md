@@ -4,7 +4,7 @@ This project was created for the "Regression Models" course, which is part of
 the "Data Science" specialization in Coursera, for the session starting on
 January 05, 2015.
 
-It was based on the following rubric:
+It was based on the following instructions:
 
 > ## Context
 > 
