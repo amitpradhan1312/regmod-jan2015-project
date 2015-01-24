@@ -89,11 +89,11 @@ and occur between `mpg` and `drat` (`r round(cmpg["drat"], 2)`) or
 ## An initial model: Fuel consumption as a function of car's transmission type
 
 In Fig. \ref{fig:mpg-fact}-(a) we can see that there is a distinctive improvement
-in fuel usage for cars with manual transmission. On average the observed
+in fuel usage for cars with manual transmission. The observed mean
 difference is `r round(mean(mpg.manual) - mean(mpg.auto), 2)` mpg, and a
 t-test (Table \ref{tab:t-test}), 
 gives results that are statistically significant: a p-value < 0.01, and a
-confidence interval ([`r round(t1$conf.int[1],2)`, `r round(t1$conf.int[2],2)`])
+95% confidence interval ([`r round(t1$conf.int[1],2)`, `r round(t1$conf.int[2],2)`])
 that does not include zero.
 
 ```{r echo=FALSE, results='asis'}
