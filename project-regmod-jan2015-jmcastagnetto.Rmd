@@ -1,0 +1,249 @@
+---
+title: What characteristics impact car fuel consumption?
+author: "Jesus M. Castagnetto"
+output:
+  pdf_document:
+    highlight: espresso
+    fig_caption: true
+fontsize: 10pt
+geometry: margin=0.55in
+---
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(message=FALSE, warning=FALSE)
+library(ggplot2)
+library(dplyr)
+library(pander)
+
+# recoding as factors
+data(mtcars)
+mtcars$cyl <- factor(mtcars$cyl)
+mtcars$vs <- factor(mtcars$vs, levels=c(0, 1), labels=c("V-engine", "Straight"))
+mtcars$am <- factor(mtcars$am, levels=c(0, 1), labels=c("Automatic", "Manual"))
+mtcars$gear <- factor(mtcars$gear)
+mtcars$carb <- factor(mtcars$carb)
+
+# correlation with mpg
+cmpg <- cor(mtcars[, c("mpg", "disp", "hp", "drat", "wt","qsec")])[1,]
+
+# comparison auto/manual
+mpg.auto <- subset(mtcars, am=="Automatic")$mpg
+mpg.manual <- subset(mtcars, am=="Manual")$mpg
+mpg.summ <- mtcars %>% group_by(am) %>% 
+    summarise(Median=median(mpg),
+              Avg=mean(mpg), 
+              SD=sd(mpg),
+              Min=min(mpg),
+              Max=max(mpg))
+names(mpg.summ) <- c("Transm.", names(mpg.summ)[-1])
+
+# t-test
+t1 <- t.test(mpg.manual, mpg.auto)
+```
+
+*Project for the "Regression Models" course at Coursera, January 2015 session.
+Source at: https://github.com/jmcastagnetto/regmod-jan2015-project/blob/master/project-regmod-jan2015-jmcastagnetto.Rmd*
+
+## Executive Summary
+
+If we consider only the type of transmission, on average, manual trumps over
+automatic (`r round(mean(mpg.manual), 2)` mpg vs `r round(mean(mpg.auto), 2)` mpg), 
+with a difference that is statistically significant (p-value < 0.01, and 
+confidence interval that does not contain zero). This is confirmed by a t-test
+and also the corresponding simple regression model "`mpg ~ am`" (Model 1). Nevertheless,
+this model only explains ~36% of the variance in fuel consumption. Further analysis produces a better model, where the fuel usage depends on: the
+type of transmission, the car weight, the engine's number of cylinders, and
+the engine power ("`mpg ~ cyl + hp + wt + am`", Model 2). This second model is capable of
+explaining ~86.6% of the variance in the data.
+
+## Exploratory data analysis
+
+The `mtcars` dataset [^henderson], contains information on 32 cars (1973-1974 
+models) and 11 characteristics recorded for each one. I decided to distinguish
+between numeric and factor variables, and recode the latter as such:
+
+[^henderson]: Henderson, H.V. and Velleman, P.F. (1981), "Building multiple regression models interactively". *Biometrics*, 37, 391–411.
+
+```{r eval=FALSE}
+data(mtcars)
+mtcars$cyl <- factor(mtcars$cyl)
+mtcars$vs <- factor(mtcars$vs, levels=c(0, 1), labels=c("V-engine", "Straight"))
+mtcars$am <- factor(mtcars$am, levels=c(0, 1), labels=c("Automatic", "Manual"))
+mtcars$gear <- factor(mtcars$gear)
+mtcars$carb <- factor(mtcars$carb)
+```
+Plots of `mpg` vs factor variables (Fig. \ref{fig:mpg-fact}), indicate that there
+are differences in fuel consumption between the different classes, e.g. 
+cars with manual transmission seem to fare better than the ones with automatic.
+Similar trends are observed for those with 4 cylinder motors, and straight 
+engines, which seem to have better mileage than their corresponding counterparts.
+
+If we now look at plots of the numeric variables (Fig. \ref{fig:mpg-num}), we 
+observe strong negative correlations between `mpg` and `disp` 
+(`r round(cmpg["disp"], 2)`), `hp` (`r round(cmpg["hp"], 2)`) and `wt` 
+(`r round(cmpg["wt"], 2)`), i.e. heavy cars with big and powerful engines consume 
+more, which intutively makes sense. Positive correlations are lower in magnitude
+and occur between `mpg` and `drat` (`r round(cmpg["drat"], 2)`) or
+`qsec` (`r round(cmpg["qsec"], 2)`).
+
+## An initial model: Fuel consumption as a function of car's transmission type
+
+In Fig. \ref{fig:mpg-fact}-(a) we can see that there is a distinctive improvement
+in fuel usage for cars with manual transmission. On average the observed
+difference is `r round(mean(mpg.manual) - mean(mpg.auto), 2)` mpg, and a
+t-test (Table \ref{tab:t-test}), 
+gives results that are statistically significant: a p-value < 0.01, and a
+confidence interval ([`r round(t1$conf.int[1],2)`, `r round(t1$conf.int[2],2)`])
+that does not include zero.
+
+```{r echo=FALSE, results='asis'}
+pander(t1, caption="t-Test results: automatic vs manual\\label{tab:t-test}")
+```
+
+```{r echo=FALSE}
+model1 <- lm(mpg ~ am, data=mtcars)
+model1.summ <- summary(model1)
+model1.table <- cbind(as.data.frame(model1.summ$coefficients),
+                      as.data.frame(confint(model1)))
+```
+
+The simple regression model: "`mpg ~ am`", gives us coefficients that are statistically
+significant (see Table \ref{tab:model1}): p-values < 0.01 as well as reasonable
+confidence intervals. 
+In fact $\beta_1$ (=`r round(coef(model1)[2],2)`) is, as expected, 
+equal to the difference of the means calculated earlier, and indicates us that
+on average, there is an *improvement of `r round(coef(model1)[2],2)` mpg* for cars
+with manual transmission. But this simple model
+only explains about `r round(100*model1.summ$r.squared, 1)`% of the variance at best 
+($R^2=`r model1.summ$r.squared`$, adjusted-$R^2=`r model1.summ$adj.r.squared`$)
+
+```{r echo=FALSE, results='asis'}
+pander(model1.table, caption="Linear model 1: `mpg ~ am`\\label{tab:model1}",
+       split.tables=Inf)
+```
+
+Diagnostic plots for this model (Fig. \ref{fig:diag-model1}) indicate that 
+the assumption of normality is warranted (Q-Q plot (a)), as well as the expected 
+distribution of residuals vs predicted values for factor variables[^nist].
+
+[^nist]: http://www.itl.nist.gov/div898/handbook/pri/section2/pri24.htm
+
+## Finding a model that considers the effect of other variables
+
+```{r echo=FALSE}
+model.all <- lm(mpg ~ ., data=mtcars)
+model2 <- step(model.all, direction="both", trace=0)
+model2.summ <- summary(model2)
+model2.table <- cbind(as.data.frame(model2.summ$coefficients),
+                      as.data.frame(confint(model2)))
+form2 <- as.character(formula(model2))
+form2.char <- paste(form2[2], form2[1], form2[3])
+```
+
+In order to simplify the generation of models, I used a stepwise model selection
+procedure, employing the algorithms implemented in R's `step()` function. The starting
+point was a saturated model (i.e. `mpg` vs the rest) not including interactions.
+In the end, the best model (selected by Akaike's Information Criterion, AIC) 
+has the form: "` `r form2.char`  `", containing 2 factors (number of cylinders
+and type of transmission) and 2 numeric (weight and power) variables. This
+expanded model explains at most 
+`r round(100*model2.summ$r.squared, 1)`% of the 
+variance ($R^2=`r model2.summ$r.squared`$, 
+adjusted-$R^2=`r model2.summ$adj.r.squared`$).
+The model coefficients are listed in Table \ref{tab:model2}.
+
+```{r echo=FALSE, results='asis'}
+pander(model2.table, caption=paste0("Linear model 2: `", form2.char,"` \\label{tab:model2}"),
+       split.tables=Inf)
+```
+
+In this model, the positive effect of the car's transmission is diminished 
+($\beta_1 =`r round(coef(model2)[6],2)`$) with respect to the simpler model,
+and instead negative effects appear due to the car's weight, the number
+of cylinders (related to engine size, perhaps), and (to a lesser degree) engine
+power. An ANOVA (see Table \ref{tab:anova}) comparing the two models
+indicate that the second model is indeed a significant improvement (p-value < 0.001)
+over the simple one discussed earlier.
+
+```{r echo=FALSE, results='asis'}
+anova.m1.m2 <- anova(model1, model2)
+pander(cbind(Models=c("mpg ~ am", "mpg ~ cyl + hp + wt + am"), anova.m1.m2), 
+       caption="Comparison of the simple and extended linear models\\label{tab:anova}",
+       split.tables=Inf)
+```
+
+This model tells us that, keeping all other variables constant,
+we now expect to have in *improvement of about 
+`r round(coef(model2)[6],2)` mpg* for manual over automatic.
+Considering the car's weight, there is an expected
+loss (assuming all other variables constant) of `r round(coef(model2)[5],2)` mpg
+for each 1000 lb increase. A smaller loss of `r round(coef(model2)[4],2)` mpg
+is expected for each HP increase in power. Finally, we expect also a decrease
+in mileage when comparing 4-cylinder cars with those with 6-cylinder 
+(`r round(coef(model2)[2],2)` mpg) and 8-cylinders (`r round(coef(model2)[3],2)` mpg)
+
+Diagnostic plots for this model (Fig. \ref{fig:diag-model2}) indicate that
+in general the assumption of normality can be accepted, even though
+there is a slight deviation from ideal in the Q-Q plot (a). 
+Also, as expected there is a random distribution of residuals when plotted
+agains the predicted values (b).
+
+## Appendix:
+
+
+```{r mpg-fact,fig.cap="Variation of `mpg` vs factor variables\\label{fig:mpg-fact}", echo=FALSE, fig.height=6}  
+par(mfrow=c(2,3))
+boxplot(mpg ~ am, mtcars, col=c("lightgreen", "cyan"), 
+        ylab="Miles per gallon", xlab="Transmission type", sub="(a)")
+boxplot(mpg ~ vs, mtcars, col=c("lightgreen", "cyan"), 
+        ylab="Miles per gallon", xlab="Engine type", sub="(b)")
+boxplot(mpg ~ cyl, mtcars, col=c("lightgreen", "cyan", "yellow"), 
+        ylab="Miles per gallon", xlab="Number of Cylinders", sub="(c)")
+boxplot(mpg ~ gear, mtcars, col=c("lightgreen", "cyan", "yellow"),
+        ylab="Miles per gallon", xlab="Number of Gears", sub="(d)")
+boxplot(mpg ~ carb, mtcars, col=c("lightgreen", "cyan", "yellow", "red", "maroon", "grey"),
+        ylab="Miles per gallon", xlab="Number of Carburators", sub="(e)")
+par(mfcol=c(1,1))
+``` 
+
+```{r mpg-num,fig.cap="Scatterplots of `mpg` vs numeric variables (including correlation)\\label{fig:mpg-num}", echo=FALSE, fig.height=6}
+library(car)
+panel.cor <- function(x, y, digits = 2, prefix = "", cex.cor, ...){
+     usr <- par("usr"); on.exit(par(usr))
+     par(usr = c(0, 1, 0, 1))
+     r <- cor(x, y)
+     txt <- paste0(prefix, round(r, digits))
+     text(0.5, 0.5, txt, cex = 3 * abs(r), col=ifelse(r < 0, "red", "blue"))
+}
+spm(mtcars[,c("mpg", "disp", "hp", "drat", "wt","qsec")], smoother=FALSE,
+    cex.labels=1.5, upper.panel=panel.cor)
+```
+
+```{r diag-model1, fig.cap="Diagnostic plots for model 1: `mpg ~ am` (a) Q-Q plot (black: automatic, red: manual); (b) Residual vs Predicted plot (black: automatic, red: manual, blue: linear regression of residuals vs predicted)\\label{fig:diag-model1}", echo=FALSE}
+par(mfrow=c(1,2))
+set.seed(123)
+qqp1 <- qqPlot(model1, main="(a)", id.n=4,
+               ylab="Studentized Residuals",
+               pch=19, cex=0.8, id.cex=0.6, id.col="grey", col.lines="cyan",
+               col=mtcars$am)
+plot(resid(model1) ~ predict(model1), main="(b)",
+               ylab="Residuals", xlab="Predicted value (mpg)",
+               pch=1, cex=0.8, col=mtcars$am)
+abline(lm(resid(model1) ~ predict(model1)), lwd=2, col="blue")
+par(mfrow=c(1,1))
+```
+
+```{r diag-model2, fig.cap="Diagnostic plots for model 2: `mpg ~ cyl + hp + wt + am` (a) Q-Q plot (black: automatic, red: manual); (b) Residual vs Predicted plot (black: automatic, red: manual, blue: linear regression of residuals vs predicted)\\label{fig:diag-model2}", echo=FALSE}
+par(mfrow=c(1,2))
+set.seed(123)
+qqp2 <- qqPlot(model2, main="(a)", id.n=4,
+               ylab="Studentized Residuals",
+               pch=19, cex=0.8, id.cex=0.6, id.col="grey", col.lines="cyan", 
+               col=mtcars$am)
+plot(resid(model2) ~ predict(model2), main="(b)",
+               ylab="Residuals", xlab="Predicted value (mpg)",
+               pch=1, cex=0.8, col=mtcars$am)
+abline(lm(resid(model2) ~ predict(model2)), lwd=2, col="blue")
+par(mfrow=c(1,1))
+```
+
