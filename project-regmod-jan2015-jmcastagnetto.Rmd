@@ -62,7 +62,7 @@ The `mtcars` dataset [^henderson], contains information on 32 cars (1973-1974
 models) and 11 characteristics recorded for each one. I decided to distinguish
 between numeric and factor variables, and recode the latter as such:
 
-[^henderson]: Henderson, H.V. and Velleman, P.F. (1981), "Building multiple regression models interactively". *Biometrics*, 37, 391–411.
+[^henderson]: Henderson, H.V. and Velleman, P.F. (1981), "Building multiple regression models interactively". *Biometrics*, 37, 391-411.
 
 ```{r eval=FALSE}
 data(mtcars)
